@@ -7,26 +7,39 @@
 // ViewModel
 
 import SwiftUI
+import Combine
 
-class EmojiArtDocument: ObservableObject {
-    static let palette: String = "🍓⚾️🌞🐘🐕"
-    private static let untitled = "EmojiArtDocument.Untitled"
-    
-    @Published private var emojiArt: EmojiArt = EmojiArt() {
-//        willSet {
-//            objectWillChange.send()
-//        }
-        didSet {
-            UserDefaults.standard.set(emojiArt.json, forKey: EmojiArtDocument.untitled)
-        }
+class EmojiArtDocument: ObservableObject, Hashable, Identifiable {
+    static func == (lhs: EmojiArtDocument, rhs: EmojiArtDocument) -> Bool {
+        lhs.id == rhs.id
     }
     
-    init() {
-        emojiArt = EmojiArt(json: UserDefaults.standard.data(forKey: EmojiArtDocument.untitled)) ?? EmojiArt()
+    let id: UUID
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+    
+    
+    static let palette: String = "🍓⚾️🌞🐘🐕"
+    
+    @Published private var emojiArt: EmojiArt
+    
+    private var autosaveCancellable: AnyCancellable?
+    
+    init(id: UUID? = nil) {
+        self.id = id ?? UUID()
+        let defaultsKey = "EmojiArdDocument.\(self.id.uuidString)"
+        emojiArt = EmojiArt(json: UserDefaults.standard.data(forKey: defaultsKey)) ?? EmojiArt()
+        autosaveCancellable = $emojiArt.sink { emojiArt in
+            UserDefaults.standard.set(emojiArt.json, forKey: defaultsKey)
+        }
         fetchBackgroundImageData()
     }
     
     @Published private(set) var backgroundImage: UIImage?
+    @Published var steadyStateZoomScale: CGFloat = 1.0
+    @Published var steadyStatePanOffset: CGSize = .zero
     
     var emojis: [EmojiArt.Emoji] { emojiArt.emojis }
     
@@ -49,23 +62,30 @@ class EmojiArtDocument: ObservableObject {
         }
     }
     
-    func setBackgroundURL(_ url: URL?) {
-        emojiArt.backgroundURL = url?.imageURL
-        fetchBackgroundImageData()
+    var backgroundURL: URL? {
+        get {
+            emojiArt.backgroundURL
+        }
+        set {
+            
+            emojiArt.backgroundURL = newValue?.imageURL
+            fetchBackgroundImageData()
+        }
+        
     }
+    
+    private var fetchimageCancellable: AnyCancellable?
     
     private func fetchBackgroundImageData() {
         backgroundImage = nil
         if let url = self.emojiArt.backgroundURL {
-            DispatchQueue.global(qos: .userInitiated).async {
-                if let imageData = try? Data(contentsOf: url) {
-                    DispatchQueue.main.async {
-                        if url == self.emojiArt.backgroundURL {
-                            self.backgroundImage = UIImage(data: imageData)
-                        }
-                    }
-                }
-            }
+            fetchimageCancellable?.cancel()
+            
+            fetchimageCancellable = URLSession.shared.dataTaskPublisher(for: url)
+                .map { data, URLResponse in UIImage(data: data) }
+                .receive(on: DispatchQueue.main)
+                .replaceError(with: nil)
+                .assign(to: \.backgroundImage, on: self)
         }
     }
 }
