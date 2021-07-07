@@ -65,7 +65,7 @@ struct EmojiArtDocumentView: View {
                     location = CGPoint(x: location.x / self.zoomScale, y: location.y / self.zoomScale)
                     return self.drop(providers: providers, at: location)
                 }
-                .navigationBarItems(trailing: Button(action: {
+                .navigationBarItems(leading: self.pickImage,trailing: Button(action: {
                     if let url = UIPasteboard.general.url, url != self.document.backgroundURL {
                         self.comfirmBackgroundPaste = true
                     } else {
@@ -92,6 +92,17 @@ struct EmojiArtDocumentView: View {
                   },
                   secondaryButton: .cancel()
             )
+        }
+    }
+    
+    @State private var showImagePicker = false
+    
+    private var pickImage: some View {
+        Image(systemName: "photo").imageScale(.large).foregroundColor(.accentColor).onTapGesture {
+            self.showImagePicker = true
+        }
+        .sheet(isPresented: $showImagePicker) {
+            ImagePicker()
         }
     }
 
