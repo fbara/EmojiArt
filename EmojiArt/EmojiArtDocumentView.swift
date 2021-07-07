@@ -96,13 +96,23 @@ struct EmojiArtDocumentView: View {
     }
     
     @State private var showImagePicker = false
+    @State private var imagePickerSourceType = UIImagePickerController.SourceType.photoLibrary
     
     private var pickImage: some View {
-        Image(systemName: "photo").imageScale(.large).foregroundColor(.accentColor).onTapGesture {
-            self.showImagePicker = true
+        HStack {
+            Image(systemName: "photo").imageScale(.large).foregroundColor(.accentColor).onTapGesture {
+                self.imagePickerSourceType = .photoLibrary
+                self.showImagePicker = true
+            }
+            if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                Image(systemName: "camera").imageScale(.large).foregroundColor(.accentColor).onTapGesture {
+                    self.imagePickerSourceType = .camera
+                    self.showImagePicker = true
+                }
+            }
         }
         .sheet(isPresented: $showImagePicker) {
-            ImagePicker() { image in
+            ImagePicker(sourceType: self.imagePickerSourceType) { image in
                 if image != nil {
                     DispatchQueue.main.async {
                         self.document.backgroundURL = image?.storeInFilesystem()
